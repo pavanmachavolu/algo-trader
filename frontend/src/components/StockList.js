@@ -10,9 +10,21 @@ const StockList = () => {
   const fetchStocks = async () => {
     try {
       setLoading(true);
-      const data = await getStocks();
-      setStocks(data);
-      setLastUpdated(new Date());
+      const response = await getStocks();
+      
+      // Handle both old format (array) and new format (object with metadata)
+      if (Array.isArray(response)) {
+        setStocks(response);
+        setLastUpdated(new Date());
+      } else {
+        setStocks(response.stocks || response);
+        // Use the backend's last_price_fetch timestamp
+        if (response.metadata && response.metadata.last_price_fetch) {
+          setLastUpdated(new Date(response.metadata.last_price_fetch));
+        } else {
+          setLastUpdated(new Date());
+        }
+      }
       setError(null);
     } catch (err) {
       setError('Failed to fetch stocks. Please try again later.');
@@ -78,12 +90,22 @@ const StockList = () => {
               <h1 className="text-3xl font-bold gradient-text mb-1">Nifty 50</h1>
               <p className="text-sm text-[#888]">Real-time market data & analytics</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               {lastUpdated && (
-                <div className="text-right">
-                  <div className="text-xs text-[#888] mb-1">Last updated</div>
-                  <div className="text-sm text-[#e5e5e5] font-mono">
-                    {lastUpdated.toLocaleTimeString()}
+                <div className="text-right glass rounded-lg px-4 py-2 border border-[#2a2a2a]">
+                  <div className="text-xs text-[#888] mb-1 uppercase tracking-wider">Last Price Fetch</div>
+                  <div className="text-sm text-[#e5e5e5] font-mono font-semibold">
+                    {lastUpdated.toLocaleString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      hour: '2-digit', 
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true
+                    })}
+                  </div>
+                  <div className="text-xs text-[#888] mt-1">
+                    {Math.round((new Date() - lastUpdated) / 1000 / 60)} min ago
                   </div>
                 </div>
               )}

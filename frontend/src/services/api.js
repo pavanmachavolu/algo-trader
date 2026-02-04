@@ -13,6 +13,7 @@ const api = axios.create({
 export const getStocks = async () => {
   try {
     const response = await api.get('/api/stocks');
+    // Return the full response object (may contain metadata)
     return response.data;
   } catch (error) {
     console.error('Error fetching stocks:', error);

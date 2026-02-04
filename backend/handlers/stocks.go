@@ -30,6 +30,7 @@ func GetStocks(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	var stocks []models.StockWithPrice
+	var latestFetchTime sql.NullTime
 
 	for rows.Next() {
 		var stock models.Stock
@@ -60,14 +61,36 @@ func GetStocks(w http.ResponseWriter, r *http.Request) {
 				Volume:       volume.Int64,
 				LastUpdated:  lastUpdated.Time,
 			}
+			
+			// Track the most recent fetch time
+			if lastUpdated.Valid && (!latestFetchTime.Valid || lastUpdated.Time.After(latestFetchTime.Time)) {
+				latestFetchTime = lastUpdated
+			}
 		}
 
 		stocks = append(stocks, stockWithPrice)
 	}
 
+	// Get the most recent fetch time from database if not found in results
+	if !latestFetchTime.Valid {
+		err := database.DB.QueryRow("SELECT MAX(last_updated) FROM latest_prices").Scan(&latestFetchTime)
+		if err != nil {
+			log.Printf("Error getting latest fetch time: %v", err)
+		}
+	}
+
+	// Create response with metadata
+	response := map[string]interface{}{
+		"stocks": stocks,
+		"metadata": map[string]interface{}{
+			"total_stocks": len(stocks),
+			"last_price_fetch": latestFetchTime.Time,
+		},
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	json.NewEncoder(w).Encode(stocks)
+	json.NewEncoder(w).Encode(response)
 }
 
 func GetStockHistory(w http.ResponseWriter, r *http.Request) {
