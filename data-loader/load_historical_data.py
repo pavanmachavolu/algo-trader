@@ -69,7 +69,6 @@ NIFTY_50_STOCKS = [
     {"symbol": "BPCL", "name": "Bharat Petroleum Corporation Ltd", "sector": "Energy"},
     {"symbol": "IOC", "name": "Indian Oil Corporation Ltd", "sector": "Energy"},
     {"symbol": "EICHERMOT", "name": "Eicher Motors Ltd", "sector": "Automobile"},
-    {"symbol": "DRREDDY", "name": "Dr. Reddy's Laboratories Ltd", "sector": "Pharmaceuticals"},
     {"symbol": "BRITANNIA", "name": "Britannia Industries Ltd", "sector": "Consumer Goods"},
     {"symbol": "VEDL", "name": "Vedanta Ltd", "sector": "Metals"},
     {"symbol": "GODREJCP", "name": "Godrej Consumer Products Ltd", "sector": "Consumer Goods"},
