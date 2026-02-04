@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getStocks } from '../services/api';
 
 const StockList = () => {
+  const navigate = useNavigate();
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -197,11 +199,14 @@ const StockList = () => {
                   stocks.map((stock, index) => (
                     <tr 
                       key={stock.id} 
-                      className="hover:bg-[#1a1a1a]/50 transition-colors duration-150"
+                      className="hover:bg-[#1a1a1a]/50 transition-colors duration-150 cursor-pointer"
                       style={{ animationDelay: `${index * 20}ms` }}
+                      onClick={() => navigate(`/stock/${stock.symbol}`)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-[#e5e5e5]">{stock.symbol}</div>
+                        <div className="text-sm font-bold text-[#e5e5e5] hover:text-[#00d4ff] transition-colors">
+                          {stock.symbol}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-[#e5e5e5]">{stock.name}</div>
