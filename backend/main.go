@@ -1,0 +1,62 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"algo-trader/backend/database"
+	"algo-trader/backend/handlers"
+	"algo-trader/backend/services"
+
+	"github.com/gorilla/mux"
+)
+
+func main() {
+	// Initialize database
+	if err := database.InitDB(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer database.CloseDB()
+
+	// Start price fetcher service in background
+	go services.StartPriceFetcher()
+
+	// Setup routes
+	router := mux.NewRouter()
+	api := router.PathPrefix("/api").Subrouter()
+
+	api.HandleFunc("/stocks", handlers.GetStocks).Methods("GET")
+	api.HandleFunc("/stocks/{symbol}/history", handlers.GetStockHistory).Methods("GET")
+
+	// Health check endpoint
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}).Methods("GET")
+
+	port := getEnv("PORT", "8080")
+	log.Printf("Server starting on port %s", port)
+
+	// Graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		if err := http.ListenAndServe(":"+port, router); err != nil {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	<-sigChan
+	log.Println("Shutting down server...")
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
