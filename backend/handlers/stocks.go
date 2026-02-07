@@ -110,7 +110,7 @@ func GetStockHistory(w http.ResponseWriter, r *http.Request) {
 	endDate := r.URL.Query().Get("end_date")
 
 	query := `
-		SELECT id, stock_id, date, open, high, low, close, volume, created_at
+		SELECT id, stock_id, date, open, high, low, close, volume, dma_20, created_at
 		FROM stock_prices
 		WHERE stock_id = ?
 	`
@@ -141,14 +141,18 @@ func GetStockHistory(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var price models.StockPrice
+		var dma20 sql.NullFloat64
 		err := rows.Scan(
 			&price.ID, &price.StockID, &price.Date,
 			&price.Open, &price.High, &price.Low, &price.Close, &price.Volume,
-			&price.CreatedAt,
+			&dma20, &price.CreatedAt,
 		)
 		if err != nil {
 			log.Printf("Error scanning price: %v", err)
 			continue
+		}
+		if dma20.Valid {
+			price.DMA20 = &dma20.Float64
 		}
 		prices = append(prices, price)
 	}

@@ -34,8 +34,29 @@ func InitDB() error {
 	DB.SetMaxOpenConns(25)
 	DB.SetMaxIdleConns(5)
 
+	if err = migrateDMA20Column(); err != nil {
+		log.Printf("Migration warning (dma_20): %v", err)
+	}
+
 	log.Println("Database connection established")
 	return nil
+}
+
+// migrateDMA20Column adds dma_20 column to stock_prices if it doesn't exist (for existing DBs).
+func migrateDMA20Column() error {
+	var count int
+	err := DB.QueryRow(`
+		SELECT COUNT(*) FROM information_schema.COLUMNS 
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stock_prices' AND COLUMN_NAME = 'dma_20'
+	`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	_, err = DB.Exec("ALTER TABLE stock_prices ADD COLUMN dma_20 DECIMAL(15,2) NULL COMMENT '20-day simple moving average of close' AFTER volume")
+	return err
 }
 
 func CloseDB() error {

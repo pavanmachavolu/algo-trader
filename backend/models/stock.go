@@ -21,6 +21,7 @@ type StockPrice struct {
 	Low       float64   `json:"low"`
 	Close     float64   `json:"close"`
 	Volume    int64     `json:"volume"`
+	DMA20     *float64  `json:"dma_20,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

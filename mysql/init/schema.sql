@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS stock_prices (
     low DECIMAL(15, 2) NOT NULL,
     close DECIMAL(15, 2) NOT NULL,
     volume BIGINT NOT NULL,
+    dma_20 DECIMAL(15, 2) NULL COMMENT '20-day simple moving average of close',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY unique_stock_date (stock_id, date),
     FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE,

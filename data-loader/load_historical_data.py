@@ -3,6 +3,7 @@
 Script to load 1 year of historical Nifty 50 stock data into MySQL database.
 """
 
+import argparse
 import os
 import sys
 import mysql.connector
@@ -130,7 +131,7 @@ def insert_stock(connection, stock_info):
 
 
 def insert_stock_prices(connection, stock_id, historical_data):
-    """Insert historical stock prices."""
+    """Insert historical stock prices (dma_20 computed and updated after insert)."""
     cursor = connection.cursor()
     
     query = """
@@ -180,6 +181,29 @@ def insert_stock_prices(connection, stock_id, historical_data):
     connection.commit()
     cursor.close()
     return inserted_count
+
+
+def update_dma_20_for_stock(connection, stock_id):
+    """Compute and save 20-day moving average for all rows of a stock that have 20+ days of history."""
+    cursor = connection.cursor()
+    cursor.execute(
+        "SELECT id, date, close FROM stock_prices WHERE stock_id = %s ORDER BY date",
+        (stock_id,)
+    )
+    rows = cursor.fetchall()
+    if len(rows) < 20:
+        cursor.close()
+        return 0
+    updated = 0
+    for i in range(19, len(rows)):
+        row_id, _, _ = rows[i]
+        closes = [float(r[2]) for r in rows[i - 19 : i + 1]]
+        dma_20 = sum(closes) / 20.0
+        cursor.execute("UPDATE stock_prices SET dma_20 = %s WHERE id = %s", (round(dma_20, 2), row_id))
+        updated += 1
+    connection.commit()
+    cursor.close()
+    return updated
 
 
 def fetch_and_load_stock(connection, stock_info):
@@ -234,6 +258,11 @@ def fetch_and_load_stock(connection, stock_info):
         count = insert_stock_prices(connection, stock_id, hist)
         print(f"  ✓ Inserted {count} records for {symbol}")
         
+        # Compute and save 20 DMA for each day
+        dma_updated = update_dma_20_for_stock(connection, stock_id)
+        if dma_updated > 0:
+            print(f"  ✓ Updated 20 DMA for {dma_updated} days")
+        
         # Small delay to avoid rate limiting
         time.sleep(0.5)
         return True
@@ -243,30 +272,57 @@ def fetch_and_load_stock(connection, stock_info):
         return False
 
 
+def backfill_dma20_all(connection):
+    """Update 20 DMA for all stocks that have price history (for existing DBs)."""
+    cursor = connection.cursor()
+    cursor.execute("SELECT id, symbol FROM stocks ORDER BY symbol")
+    stocks = cursor.fetchall()
+    cursor.close()
+    total_updated = 0
+    for stock_id, symbol in stocks:
+        n = update_dma_20_for_stock(connection, stock_id)
+        if n > 0:
+            print(f"  {symbol}: updated {n} days")
+            total_updated += n
+    return total_updated
+
+
 def main():
-    """Main function to load all Nifty 50 stocks."""
+    parser = argparse.ArgumentParser(description="Load Nifty 50 historical data and/or backfill 20 DMA")
+    parser.add_argument("--backfill-dma-only", action="store_true", help="Only compute and save 20 DMA for existing stock_prices")
+    args = parser.parse_args()
+
     print("=" * 60)
+    if args.backfill_dma_only:
+        print("Backfill 20 DMA for all stocks")
+        print("=" * 60)
+        connection = get_db_connection()
+        print("✓ Database connection established")
+        total = backfill_dma20_all(connection)
+        connection.close()
+        print(f"\n✓ Backfill complete: {total} rows updated with 20 DMA")
+        return
     print("NSE Nifty 50 Historical Data Loader")
     print("=" * 60)
-    
+
     # Connect to database
     print("\nConnecting to database...")
     connection = get_db_connection()
     print("✓ Database connection established")
-    
+
     # Process each stock
     success_count = 0
     fail_count = 0
-    
+
     for stock_info in NIFTY_50_STOCKS:
         if fetch_and_load_stock(connection, stock_info):
             success_count += 1
         else:
             fail_count += 1
-    
+
     # Close connection
     connection.close()
-    
+
     print("\n" + "=" * 60)
     print(f"Data loading complete!")
     print(f"  Success: {success_count} stocks")
