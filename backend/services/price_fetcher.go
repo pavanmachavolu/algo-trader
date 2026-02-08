@@ -86,85 +86,75 @@ func FetchAndUpdatePrices() error {
 }
 
 func fetchYahooFinancePrice(symbol string) (float64, float64, int64, error) {
-	// Try NSE price service first (more reliable for NSE stocks)
+	// 1) Yahoo Finance first (free, no API key; symbol e.g. RELIANCE.NS for NSE)
+	price, changePercent, volume, err := fetchYahooChart(symbol)
+	if err == nil {
+		return price, changePercent, volume, nil
+	}
+	log.Printf("Yahoo Finance failed for %s: %v, trying NSE price service...", symbol, err)
+
+	// 2) Fallback: NSE price service (nsetools)
 	priceServiceURL := os.Getenv("PRICE_SERVICE_URL")
 	if priceServiceURL == "" {
 		priceServiceURL = "http://price-service:5000"
 	}
-
-	// Try NSE service first - remove .NS suffix for nsetools
 	symbolClean := symbol
 	if len(symbol) > 3 && symbol[len(symbol)-3:] == ".NS" {
 		symbolClean = symbol[:len(symbol)-3]
 	}
-	
 	url := fmt.Sprintf("%s/quote?symbol=%s", priceServiceURL, symbolClean)
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
-	if err == nil {
+	resp, err2 := client.Get(url)
+	if err2 == nil {
 		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
-			if err == nil {
-				var nseResp struct {
-					Price         float64 `json:"price"`
-					ChangePercent float64 `json:"change_percent"`
-					Volume        int64   `json:"volume"`
-				}
-				if json.Unmarshal(body, &nseResp) == nil && nseResp.Price > 0 {
-					log.Printf("Fetched from NSE service: %s = %.2f", symbol, nseResp.Price)
-					return nseResp.Price, nseResp.ChangePercent, nseResp.Volume, nil
-				}
+			body, _ := io.ReadAll(resp.Body)
+			var nseResp struct {
+				Price         float64 `json:"price"`
+				ChangePercent float64 `json:"change_percent"`
+				Volume        int64   `json:"volume"`
+			}
+			if json.Unmarshal(body, &nseResp) == nil && nseResp.Price > 0 {
+				return nseResp.Price, nseResp.ChangePercent, nseResp.Volume, nil
 			}
 		}
 	}
-	
-	// Log that we're falling back to Yahoo Finance
-	if err != nil {
-		log.Printf("NSE service error for %s: %v, trying Yahoo Finance...", symbol, err)
-	}
+	return 0, 0, 0, fmt.Errorf("Yahoo and NSE both failed for %s: %w", symbol, err)
+}
 
-	// Fallback to Yahoo Finance
-	url = fmt.Sprintf("https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=1d", symbol)
-	client = &http.Client{Timeout: 10 * time.Second}
-	resp, err = client.Get(url)
+func fetchYahooChart(symbol string) (float64, float64, int64, error) {
+	url := fmt.Sprintf("https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=1d", symbol)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to fetch from price service and Yahoo Finance: %w", err)
+		return 0, 0, 0, err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, 0, fmt.Errorf("Yahoo Finance API returned status %d", resp.StatusCode)
+		return 0, 0, 0, fmt.Errorf("status %d", resp.StatusCode)
 	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to read response body: %w", err)
+		return 0, 0, 0, err
 	}
-
 	var yahooResp YahooFinanceResponse
 	if err := json.Unmarshal(body, &yahooResp); err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to parse JSON: %w", err)
+		return 0, 0, 0, err
 	}
-
 	if len(yahooResp.Chart.Result) == 0 {
-		return 0, 0, 0, fmt.Errorf("no data returned for symbol %s", symbol)
+		return 0, 0, 0, fmt.Errorf("no data for %s", symbol)
 	}
-
 	result := yahooResp.Chart.Result[0]
 	price := result.Meta.RegularMarketPrice
 	previousClose := result.Meta.PreviousClose
-
 	var changePercent float64
 	if previousClose > 0 {
 		changePercent = ((price - previousClose) / previousClose) * 100
 	}
-
 	var volume int64
 	if len(result.Indicators.Quote) > 0 && len(result.Indicators.Quote[0].Volume) > 0 {
 		volume = result.Indicators.Quote[0].Volume[0]
 	}
-
 	return price, changePercent, volume, nil
 }
 

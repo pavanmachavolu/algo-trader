@@ -7,7 +7,7 @@ A full-stack application for monitoring and backtesting algorithmic trading stra
 - **Backend**: Go REST API with MySQL database
 - **Frontend**: React.js with Tailwind CSS
 - **Database**: MySQL 8.0 with persistent Docker volumes
-- **Data Source**: Yahoo Finance API (delayed quotes)
+- **Data Source**: Free, no API key — Yahoo Finance (historical), nsetools / NSE (live quotes)
 - **Deployment**: Docker Compose
 
 ## Features
@@ -66,7 +66,7 @@ A full-stack application for monitoring and backtesting algorithmic trading stra
 - Auto-refreshes every 5 minutes
 
 ### Python Data Loader
-- One-time service to load 1 year of historical data
+- One-time service to load 1 year of historical data (and 20 DMA) via Yahoo Finance (NSE symbols e.g. INFY.NS). No API key required.
 - Run with: `docker-compose --profile loader up data-loader`
 
 ## API Usage

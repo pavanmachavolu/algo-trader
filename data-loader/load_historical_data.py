@@ -6,21 +6,13 @@ Script to load 1 year of historical Nifty 50 stock data into MySQL database.
 import argparse
 import os
 import sys
+import time
 import mysql.connector
 from mysql.connector import Error
 import pandas as pd
 from datetime import datetime, timedelta
-import time
 
-# Try nsetools for NSE data, fallback to yfinance
-try:
-    from nsetools import Nse
-    nse = Nse()
-    USE_NSETOOLS = True
-except ImportError:
-    USE_NSETOOLS = False
-    nse = None
-
+# Historical data: yfinance (free, no API key). Uses NSE symbols e.g. INFY.NS.
 try:
     import yfinance as yf
 except ImportError:
@@ -219,41 +211,30 @@ def fetch_and_load_stock(connection, stock_info):
         print(f"  Failed to get stock_id for {symbol}")
         return False
     
-    # Calculate date range (1 year back)
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=365)
-    
+    # Free source: yfinance (NSE symbols e.g. INFY.NS), no API key
+    hist = None
+    if yf is not None:
+        try:
+            print(f"  Fetching from Yahoo Finance ({nse_symbol})...")
+            ticker = yf.Ticker(nse_symbol)
+            hist = ticker.history(period="1y")
+            if hist.empty:
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=365)
+                hist = ticker.history(start=start_date, end=end_date)
+            if hist.empty:
+                hist = ticker.history(period="2y")
+                if not hist.empty:
+                    hist = hist[hist.index >= (datetime.now() - timedelta(days=365)).date()]
+        except Exception as e:
+            print(f"  Yahoo Finance failed: {e}")
+            hist = None
+
+    if hist is None or hist.empty:
+        print(f"  No historical data found for {symbol}")
+        return False
+
     try:
-        hist = None
-        
-        # Note: nsetools doesn't support historical data directly
-        # We'll use yfinance for historical, nsetools is better for current prices
-        # For now, skip historical data loading and rely on price service for current prices
-        # Historical data can be loaded manually or via alternative sources
-        hist = None
-        
-        # Fallback to yfinance if NSEDownload failed or not available
-        if (hist is None or hist.empty) and yf is not None:
-            try:
-                print(f"  Fetching from Yahoo Finance...")
-                ticker = yf.Ticker(nse_symbol)
-                hist = ticker.history(period="1y")
-                
-                if hist.empty:
-                    hist = ticker.history(start=start_date, end=end_date)
-                
-                if hist.empty:
-                    hist = ticker.history(period="2y")
-                    if not hist.empty:
-                        hist = hist[hist.index >= start_date]
-            except Exception as e:
-                print(f"  Yahoo Finance failed: {e}")
-                hist = None
-        
-        if hist is None or hist.empty:
-            print(f"  No historical data found for {symbol}")
-            return False
-        
         # Insert prices
         count = insert_stock_prices(connection, stock_id, hist)
         print(f"  ✓ Inserted {count} records for {symbol}")

@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-Price service for fetching NSE stock prices using nsetools.
-This service provides HTTP API for the Go backend to fetch current prices.
+Price service for Nifty 50 stock prices. Free, no API key: nsetools and direct NSE API.
 """
 
-from flask import Flask, jsonify, request
-from nsetools import Nse
 import os
 import requests
-import json
+from flask import Flask, jsonify, request
+
+try:
+    from nsetools import Nse
+    nse = Nse()
+except ImportError:
+    nse = None
 
 app = Flask(__name__)
-nse = Nse()
+
 
 def get_nse_quote_direct(symbol):
     """Fallback method: Direct NSE API call for stocks nsetools can't handle"""
@@ -46,36 +49,35 @@ def health():
 
 @app.route('/quote', methods=['GET'])
 def get_quote():
-    """Get current quote for a stock symbol (without .NS suffix)"""
+    """Get current quote for a stock symbol (without .NS suffix). Uses nsetools and direct NSE API (free, no key)."""
     symbol = request.args.get('symbol')
     if not symbol:
         return jsonify({"error": "symbol parameter required"}), 400
-    
-    # Remove .NS suffix if present
-    symbol = symbol.replace('.NS', '').upper()
-    
+
+    symbol_clean = symbol.replace('.NS', '').upper()
+
     try:
         quote = None
-        # Try nsetools first
-        try:
-            quote = nse.get_quote(symbol, all_data=False)
-        except (KeyError, TypeError, Exception) as e:
-            # If nsetools fails (common with TATAMOTORS, M&M), try direct NSE API
-            quote = get_nse_quote_direct(symbol)
-            if not quote:
-                # Try with all_data=True as last resort
-                try:
-                    quote = nse.get_quote(symbol, all_data=True)
-                except:
-                    pass
-        
+        if nse:
+            try:
+                quote = nse.get_quote(symbol_clean, all_data=False)
+            except (KeyError, TypeError, Exception):
+                quote = get_nse_quote_direct(symbol_clean)
+                if not quote:
+                    try:
+                        quote = nse.get_quote(symbol_clean, all_data=True)
+                    except Exception:
+                        pass
+        else:
+            quote = get_nse_quote_direct(symbol_clean)
+
         if not quote:
             return jsonify({
-                "error": f"No data found for {symbol}",
-                "note": "This stock may not be available via NSE API or symbol may be incorrect"
+                "error": f"No data found for {symbol_clean}",
+                "note": "NSE symbol may be incorrect or API temporarily unavailable"
             }), 404
-        
-        # Try multiple possible price field names
+
+        # Normalize quote from NSE (lastPrice, open, high, low, totalTradedVolume)
         last_price = None
         for price_key in ['lastPrice', 'ltp', 'basePrice', 'price', 'closePrice']:
             if price_key in quote and quote[price_key] is not None:
@@ -84,11 +86,9 @@ def get_quote():
                     break
                 except (ValueError, TypeError):
                     continue
-        
         if last_price is None or last_price == 0:
-            return jsonify({"error": f"No valid price data found for {symbol}"}), 404
-        
-        # Try multiple possible previous close field names
+            return jsonify({"error": f"No valid price data found for {symbol_clean}"}), 404
+
         previous_close = last_price
         for close_key in ['previousClose', 'prevClose', 'closePrice', 'basePrice']:
             if close_key in quote and quote[close_key] is not None:
@@ -98,11 +98,8 @@ def get_quote():
                         break
                 except (ValueError, TypeError):
                     continue
-        
         change = last_price - previous_close
         change_percent = (change / previous_close * 100) if previous_close > 0 else 0
-        
-        # Try multiple possible volume field names
         volume = 0
         for vol_key in ['totalTradedVolume', 'volume', 'tradedVolume', 'totalVolume']:
             if vol_key in quote and quote[vol_key] is not None:
@@ -111,9 +108,9 @@ def get_quote():
                     break
                 except (ValueError, TypeError):
                     continue
-        
+
         return jsonify({
-            "symbol": symbol,
+            "symbol": symbol_clean,
             "price": last_price,
             "change": change,
             "change_percent": change_percent,
@@ -131,35 +128,31 @@ def get_quote():
 
 @app.route('/quotes', methods=['POST'])
 def get_quotes_batch():
-    """Get quotes for multiple symbols at once"""
-    data = request.get_json()
+    """Get quotes for multiple symbols via nsetools / direct NSE (free, no API key)."""
+    data = request.get_json() or {}
     symbols = data.get('symbols', [])
-    
+
     if not symbols:
         return jsonify({"error": "symbols array required"}), 400
-    
+
     results = []
     for symbol in symbols:
         symbol_clean = symbol.replace('.NS', '').upper()
-        try:
-            quote = nse.get_quote(symbol_clean)
-            if quote and 'lastPrice' in quote:
-                last_price = float(quote.get('lastPrice', 0))
-                previous_close = float(quote.get('previousClose', last_price))
-                change = last_price - previous_close
-                change_percent = (change / previous_close * 100) if previous_close > 0 else 0
-                volume = int(quote.get('totalTradedVolume', 0))
-                
-                results.append({
-                    "symbol": symbol_clean,
-                    "price": last_price,
-                    "change_percent": change_percent,
-                    "volume": volume
-                })
-        except Exception as e:
-            # Continue with other symbols even if one fails
-            continue
-    
+        if nse:
+            try:
+                quote = nse.get_quote(symbol_clean)
+                if quote and quote.get('lastPrice'):
+                    last_price = float(quote.get('lastPrice', 0))
+                    previous_close = float(quote.get('previousClose', last_price))
+                    change_percent = ((last_price - previous_close) / previous_close * 100) if previous_close > 0 else 0
+                    results.append({
+                        "symbol": symbol_clean,
+                        "price": last_price,
+                        "change_percent": change_percent,
+                        "volume": int(quote.get('totalTradedVolume', 0)),
+                    })
+            except Exception:
+                pass
     return jsonify({"quotes": results}), 200
 
 if __name__ == '__main__':
