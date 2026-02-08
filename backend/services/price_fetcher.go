@@ -29,6 +29,14 @@ type YahooFinanceResponse struct {
 	} `json:"chart"`
 }
 
+// Price fetcher settings (change here instead of env vars)
+var (
+	// YahooFetchDelaySec is the delay in seconds between each symbol request (avoids 429 rate limit)
+	YahooFetchDelaySec = 2
+	// PriceFetchIntervalMin is how often to run a full price fetch (minutes)
+	PriceFetchIntervalMin = 10
+)
+
 func FetchAndUpdatePrices() error {
 	// Get all stocks
 	rows, err := database.DB.Query("SELECT id, nse_symbol FROM stocks")
@@ -54,8 +62,14 @@ func FetchAndUpdatePrices() error {
 		stocks = append(stocks, stock)
 	}
 
+	// Rate limit: Yahoo Finance returns 429 if we hit too fast. Delay between each symbol.
+	delay := time.Duration(YahooFetchDelaySec) * time.Second
+
 	// Fetch price for each stock
-	for _, stock := range stocks {
+	for i, stock := range stocks {
+		if i > 0 {
+			time.Sleep(delay)
+		}
 		price, changePercent, volume, err := fetchYahooFinancePrice(stock.NSESymbol)
 		if err != nil {
 			log.Printf("Error fetching price for %s: %v", stock.NSESymbol, err)
@@ -124,12 +138,22 @@ func fetchYahooFinancePrice(symbol string) (float64, float64, int64, error) {
 
 func fetchYahooChart(symbol string) (float64, float64, int64, error) {
 	url := fmt.Sprintf("https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=1d", symbol)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	// Yahoo returns 429 without a browser-like User-Agent; reduce rate-limit triggers
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json")
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, 0, 0, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return 0, 0, 0, fmt.Errorf("status 429 (rate limited); increase YahooFetchDelaySec or PriceFetchIntervalMin in price_fetcher.go")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, 0, 0, fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -159,16 +183,16 @@ func fetchYahooChart(symbol string) (float64, float64, int64, error) {
 }
 
 func StartPriceFetcher() {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(time.Duration(PriceFetchIntervalMin) * time.Minute)
 	defer ticker.Stop()
 
+	log.Printf("Price fetcher: interval=%dm, Yahoo delay=%ds", PriceFetchIntervalMin, YahooFetchDelaySec)
 	// Fetch immediately on start
 	log.Println("Starting price fetcher service...")
 	if err := FetchAndUpdatePrices(); err != nil {
 		log.Printf("Error in initial price fetch: %v", err)
 	}
 
-	// Then fetch every 5 minutes
 	for range ticker.C {
 		if err := FetchAndUpdatePrices(); err != nil {
 			log.Printf("Error fetching prices: %v", err)
