@@ -93,10 +93,58 @@ func FetchAndUpdatePrices() error {
 			continue
 		}
 
+		// Store day-wise latest price in stock_prices (one row per stock per day) for 20 DMA
+		today := time.Now().Format("2006-01-02")
+		_, err = database.DB.Exec(`
+			INSERT INTO stock_prices (stock_id, date, open, high, low, close, volume)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE close = VALUES(close), volume = VALUES(volume)
+		`, stock.ID, today, price, price, price, price, volume)
+		if err != nil {
+			log.Printf("Error upserting daily price for stock_id %d: %v", stock.ID, err)
+			continue
+		}
+
+		// Compute 20 DMA from last 20 days of closes and update today's row
+		if err := updateDMA20ForStockAndDate(stock.ID, today); err != nil {
+			log.Printf("Error updating dma_20 for stock_id %d: %v", stock.ID, err)
+		}
+
 		log.Printf("Updated price for %s: %.2f (%.2f%%)", stock.NSESymbol, price, changePercent)
 	}
 
 	return nil
+}
+
+// updateDMA20ForStockAndDate sets dma_20 for the given (stock_id, date) as the average of the last 20 trading days' close (including that date).
+func updateDMA20ForStockAndDate(stockID int, date string) error {
+	rows, err := database.DB.Query(`
+		SELECT close FROM stock_prices
+		WHERE stock_id = ? AND date <= ?
+		ORDER BY date DESC LIMIT 20
+	`, stockID, date)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var closes []float64
+	for rows.Next() {
+		var c float64
+		if err := rows.Scan(&c); err != nil {
+			return err
+		}
+		closes = append(closes, c)
+	}
+	if len(closes) < 20 {
+		return nil // not enough history yet
+	}
+	sum := 0.0
+	for _, c := range closes {
+		sum += c
+	}
+	dma20 := sum / float64(len(closes))
+	_, err = database.DB.Exec(`UPDATE stock_prices SET dma_20 = ROUND(?, 2) WHERE stock_id = ? AND date = ?`, dma20, stockID, date)
+	return err
 }
 
 func fetchYahooFinancePrice(symbol string) (float64, float64, int64, error) {

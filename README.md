@@ -60,7 +60,7 @@ A full-stack application for monitoring and backtesting algorithmic trading stra
   - `GET /api/stocks` - List all stocks with latest prices
   - `GET /api/stocks/{symbol}/history` - Get historical data for a stock
   - `GET /health` - Health check
-- **Price fetcher:** Fetches latest prices from Yahoo Finance (then NSE fallback) on startup and on a schedule. To avoid Yahoo 429 rate limits, a delay is applied between each symbol. Tune in code: `YahooFetchDelaySec` and `PriceFetchIntervalMin` in `backend/services/price_fetcher.go`.
+- **Price fetcher:** Fetches latest prices from Yahoo Finance (then NSE fallback) on startup and on a schedule. Each fetch also upserts a day-wise row into `stock_prices` (one row per stock per day; last fetch of the day wins) and computes 20 DMA from the last 20 days of closes. Tune in code: `YahooFetchDelaySec` and `PriceFetchIntervalMin` in `backend/services/price_fetcher.go`.
 
 ### React Frontend
 - Port: 3000
