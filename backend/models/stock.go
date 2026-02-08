@@ -36,5 +36,7 @@ type LatestPrice struct {
 
 type StockWithPrice struct {
 	Stock
-	LatestPrice *LatestPrice `json:"latest_price,omitempty"`
+	LatestPrice         *LatestPrice `json:"latest_price,omitempty"`
+	DMA20               *float64     `json:"dma_20,omitempty"`
+	PriceVsDMA20Percent  *float64     `json:"price_vs_dma20_percent,omitempty"`
 }

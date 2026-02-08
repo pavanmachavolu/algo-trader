@@ -181,6 +181,12 @@ const StockList = () => {
                     Change %
                   </th>
                   <th className="px-6 py-4 text-right text-xs font-semibold text-[#888] uppercase tracking-wider">
+                    20 DMA
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-[#888] uppercase tracking-wider">
+                    % vs 20 DMA
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-[#888] uppercase tracking-wider">
                     Volume
                   </th>
                 </tr>
@@ -188,7 +194,7 @@ const StockList = () => {
               <tbody className="divide-y divide-[#2a2a2a]">
                 {stocks.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-[#888]">
+                    <td colSpan="8" className="px-6 py-12 text-center text-[#888]">
                       <div className="flex flex-col items-center gap-3">
                         <div className="text-4xl">📊</div>
                         <div>No stocks available</div>
@@ -223,6 +229,14 @@ const StockList = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         {formatChange(stock.latest_price?.change_percent)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="text-sm text-[#e5e5e5] font-mono">
+                          {formatPrice(stock.dma_20)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        {stock.price_vs_dma20_percent != null ? formatChange(stock.price_vs_dma20_percent) : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="text-sm text-[#888] font-mono">

@@ -15,7 +15,8 @@ import (
 func GetStocks(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT s.id, s.symbol, s.name, s.sector, s.nse_symbol, s.created_at, s.updated_at,
-		       lp.price, lp.change_percent, lp.volume, lp.last_updated
+		       lp.price, lp.change_percent, lp.volume, lp.last_updated,
+		       (SELECT sp.dma_20 FROM stock_prices sp WHERE sp.stock_id = s.id ORDER BY sp.date DESC LIMIT 1) AS dma_20
 		FROM stocks s
 		LEFT JOIN latest_prices lp ON s.id = lp.stock_id
 		ORDER BY s.symbol
@@ -38,11 +39,13 @@ func GetStocks(w http.ResponseWriter, r *http.Request) {
 		var changePercent sql.NullFloat64
 		var volume sql.NullInt64
 		var lastUpdated sql.NullTime
+		var dma20 sql.NullFloat64
 
 		err := rows.Scan(
 			&stock.ID, &stock.Symbol, &stock.Name, &stock.Sector, &stock.NSESymbol,
 			&stock.CreatedAt, &stock.UpdatedAt,
 			&price, &changePercent, &volume, &lastUpdated,
+			&dma20,
 		)
 		if err != nil {
 			log.Printf("Error scanning stock: %v", err)
@@ -61,7 +64,11 @@ func GetStocks(w http.ResponseWriter, r *http.Request) {
 				Volume:       volume.Int64,
 				LastUpdated:  lastUpdated.Time,
 			}
-			
+			if dma20.Valid && dma20.Float64 > 0 {
+				stockWithPrice.DMA20 = &dma20.Float64
+				diffPct := (price.Float64 - dma20.Float64) / dma20.Float64 * 100
+				stockWithPrice.PriceVsDMA20Percent = &diffPct
+			}
 			// Track the most recent fetch time
 			if lastUpdated.Valid && (!latestFetchTime.Valid || lastUpdated.Time.After(latestFetchTime.Time)) {
 				latestFetchTime = lastUpdated
