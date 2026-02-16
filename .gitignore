@@ -8,6 +8,7 @@ frontend/node_modules/
 # Build outputs
 frontend/build/
 backend/backend
+backend/nifty20dma
 
 # Environment files
 .env

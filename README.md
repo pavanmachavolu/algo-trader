@@ -70,6 +70,20 @@ A full-stack application for monitoring and backtesting algorithmic trading stra
 - One-time service to load 1 year of historical data (and 20 DMA) via Yahoo Finance (NSE symbols e.g. INFY.NS). No API key required.
 - Run with: `docker-compose --profile loader up data-loader`
 
+### Zerodha Kite – Nifty 50 20 DMA (CLI)
+- Fetches **historical day candles** from Zerodha Kite Connect and computes **20-day moving average** for all Nifty 50 stocks.
+- Requires Zerodha API key and secret; one-time login to get `request_token`, then exchange for `access_token`.
+- From project root:
+  ```bash
+  cd backend
+  export KITE_API_KEY=your_api_key
+  export KITE_API_SECRET=your_api_secret
+  # One-time: open https://kite.zerodha.com/connect/login?api_key=YOUR_API_KEY&v=3 (set redirect URL in Kite developer console), then:
+  export KITE_REQUEST_TOKEN=request_token_from_redirect_url
+  go run ./cmd/nifty20dma
+  ```
+- Or set `KITE_ACCESS_TOKEN` directly (valid until EOD) to skip login. Output: symbol, instrument token, 20 DMA, last price, candle count.
+
 ## API Usage
 
 ### Get all stocks
