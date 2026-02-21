@@ -20,19 +20,6 @@ services:
     networks:
       - algo-trader-network
 
-  price-service:
-    build:
-      context: ./price-service
-      dockerfile: Dockerfile
-    container_name: algo-trader-price-service
-    ports:
-      - "5000:5000"
-    environment:
-      PORT: 5000
-    networks:
-      - algo-trader-network
-    restart: unless-stopped
-
   backend:
     build:
       context: ./backend
@@ -46,12 +33,11 @@ services:
       DB_USER: trader
       DB_PASSWORD: traderpass
       DB_NAME: algo_trader
-      PRICE_SERVICE_URL: http://price-service:5000
+    env_file:
+      - backend/.env
     depends_on:
       mysql:
         condition: service_healthy
-      price-service:
-        condition: service_started
     networks:
       - algo-trader-network
     restart: unless-stopped
@@ -70,26 +56,6 @@ services:
     networks:
       - algo-trader-network
     restart: unless-stopped
-
-  data-loader:
-    build:
-      context: ./data-loader
-      dockerfile: Dockerfile
-    container_name: algo-trader-data-loader
-    environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: trader
-      DB_PASSWORD: traderpass
-      DB_NAME: algo_trader
-    depends_on:
-      mysql:
-        condition: service_healthy
-    networks:
-      - algo-trader-network
-    profiles:
-      - loader
-    command: python load_historical_data.py
 
 networks:
   algo-trader-network:

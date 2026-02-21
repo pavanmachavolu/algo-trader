@@ -7,40 +7,40 @@ A full-stack application for monitoring and backtesting algorithmic trading stra
 - **Backend**: Go REST API with MySQL database
 - **Frontend**: React.js with Tailwind CSS
 - **Database**: MySQL 8.0 with persistent Docker volumes
-- **Data Source**: Free, no API key — Yahoo Finance (historical), nsetools / NSE (live quotes)
+- **Data Source**: Zerodha Kite Connect (paid subscription, ₹500/month)
 - **Deployment**: Docker Compose
 
 ## Features
 
 - View all Nifty 50 stocks with latest prices
-- Historical data storage (1 year) for backtesting
-- Auto-refresh prices every 5 minutes
+- Historical data (1 year) from Zerodha Kite for backtesting
+- Auto-refresh prices every 10 minutes
+- 20-day moving average (20 DMA) computed from Kite historical data
 - Persistent data storage in Docker volumes
 - Clean, responsive UI
 
 ## Prerequisites
 
 - Docker and Docker Compose installed
+- Zerodha Kite Connect paid subscription (₹500/month)
 - At least 2GB free disk space for database volume
 
 ## Quick Start
 
-1. **Clone and navigate to the project:**
-   ```bash
-   cd algo-trader
+1. **Set up Zerodha Kite credentials** in `backend/.env`:
    ```
+   KITE_API_KEY=your_api_key
+   KITE_API_SECRET=your_api_secret
+   KITE_ACCESS_TOKEN=your_access_token
+   ```
+   Use `go run ./cmd/kite-token` to generate access token (valid until EOD).
 
 2. **Start all services:**
    ```bash
    docker-compose up -d
    ```
 
-3. **Load historical data (run once):**
-   ```bash
-   docker-compose --profile loader up data-loader
-   ```
-
-4. **Access the application:**
+3. **Access the application:**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8080
    - MySQL: localhost:3306
@@ -53,36 +53,23 @@ A full-stack application for monitoring and backtesting algorithmic trading stra
 - User: `trader` / Password: `traderpass`
 - Root Password: `rootpassword`
 - Data persisted in `./docker-volumes/mysql-data`
+- Nifty 50 stocks seeded on first run
 
 ### Go Backend
 - Port: 8080
 - Endpoints:
-  - `GET /api/stocks` - List all stocks with latest prices
+  - `GET /api/stocks` - List all stocks with latest prices and 20 DMA
   - `GET /api/stocks/{symbol}/history` - Get historical data for a stock
   - `GET /health` - Health check
-- **Price fetcher:** Fetches latest prices from Yahoo Finance (then NSE fallback) on startup and on a schedule. Each fetch also upserts a day-wise row into `stock_prices` (one row per stock per day; last fetch of the day wins) and computes 20 DMA from the last 20 days of closes. Tune in code: `YahooFetchDelaySec` and `PriceFetchIntervalMin` in `backend/services/price_fetcher.go`.
+- **Price fetcher:** Fetches prices and historical data from Zerodha Kite. Syncs 1 year historical on startup, then fetches quotes every 10 minutes. Computes 20 DMA from stock_prices.
 
 ### React Frontend
 - Port: 3000
 - Auto-refreshes every 5 minutes
 
-### Python Data Loader
-- One-time service to load 1 year of historical data (and 20 DMA) via Yahoo Finance (NSE symbols e.g. INFY.NS). No API key required.
-- Run with: `docker-compose --profile loader up data-loader`
-
-### Zerodha Kite – Nifty 50 20 DMA (CLI)
-- Fetches **historical day candles** from Zerodha Kite Connect and computes **20-day moving average** for all Nifty 50 stocks.
-- Requires Zerodha API key and secret; one-time login to get `request_token`, then exchange for `access_token`.
-- From project root:
-  ```bash
-  cd backend
-  export KITE_API_KEY=your_api_key
-  export KITE_API_SECRET=your_api_secret
-  # One-time: open https://kite.zerodha.com/connect/login?api_key=YOUR_API_KEY&v=3 (set redirect URL in Kite developer console), then:
-  export KITE_REQUEST_TOKEN=request_token_from_redirect_url
-  go run ./cmd/nifty20dma
-  ```
-- Or set `KITE_ACCESS_TOKEN` directly (valid until EOD) to skip login. Output: symbol, instrument token, 20 DMA, last price, candle count.
+### Zerodha Kite CLI Tools
+- **kite-token:** Generates access token via browser login. Runs HTTP server on 8888, opens login URL, captures redirect. Set redirect URL to `http://localhost:8888` in Kite app.
+- **nifty20dma:** Fetches historical day candles and prints 20 DMA for Nifty 50 (standalone, no DB).
 
 ## API Usage
 
@@ -103,9 +90,9 @@ curl "http://localhost:8080/api/stocks/RELIANCE/history?start_date=2024-01-01&en
 
 ## Database Schema
 
-- `stocks`: Stock metadata (symbol, name, sector)
-- `stock_prices`: Historical OHLCV data
-- `latest_prices`: Current/delayed prices (updated every 5 minutes)
+- `stocks`: Stock metadata (symbol, name, sector, nse_symbol)
+- `stock_prices`: Historical OHLCV data from Kite
+- `latest_prices`: Current prices (updated every 10 min)
 
 ## Development
 
@@ -113,6 +100,7 @@ curl "http://localhost:8080/api/stocks/RELIANCE/history?start_date=2024-01-01&en
 ```bash
 cd backend
 go mod download
+# Ensure backend/.env has KITE_API_KEY, KITE_API_SECRET, KITE_ACCESS_TOKEN
 go run main.go
 ```
 
@@ -136,13 +124,14 @@ docker-compose down -v
 
 ## Notes
 
-- Price data is delayed (typically 15-20 minutes) as per Yahoo Finance API
-- Historical data loading may take 10-15 minutes for all 50 stocks
+- Zerodha access token expires at end of day; run `kite-token` to refresh
+- Historical sync on startup fetches 1 year of data (~50 stocks × 1 call each)
 - Database data persists in `./docker-volumes/mysql-data` even after container stops
 
 ## Troubleshooting
 
 1. **Port already in use**: Change ports in `docker-compose.yml`
 2. **Database connection errors**: Wait for MySQL to be healthy before starting other services
-3. **No price data**: Ensure data-loader has completed successfully
-4. **Frontend can't connect to backend**: Check `REACT_APP_API_URL` in frontend environment
+3. **No price data**: Ensure KITE_ACCESS_TOKEN is set and valid; run `kite-token` to refresh
+4. **Insufficient permission**: Ensure Kite Connect paid subscription (not Personal/free app)
+5. **Frontend can't connect to backend**: Check `REACT_APP_API_URL` in frontend environment
