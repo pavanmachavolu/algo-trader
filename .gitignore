@@ -9,6 +9,7 @@ frontend/node_modules/
 frontend/build/
 backend/backend
 backend/nifty20dma
+backend/kite-token
 
 # Environment files
 .env
