@@ -344,17 +344,53 @@ func SyncHistorical() error {
 			if err != nil {
 				log.Printf("SyncHistorical: insert %s %s: %v", symbol, dateStr, err)
 			}
-			if err := updateDMA20ForStockAndDate(s.ID, dateStr); err != nil {
-				log.Printf("SyncHistorical: dma %s %s: %v", symbol, dateStr, err)
-			}
 		}
 		fetched++
 		log.Printf("SyncHistorical: synced %s (%d candles)", symbol, len(hist))
 		time.Sleep(time.Duration(KiteFetchDelayMs) * time.Millisecond)
 	}
 
-	log.Printf("SyncHistorical: done. fetched=%d, skipped=%d, already_up_to_date=%d",
+	log.Printf("SyncHistorical: fetch phase done. fetched=%d, skipped=%d, already_up_to_date=%d",
 		fetched, skipped, 50-len(missingStocks))
+
+	// Step 5: Recalculate 20 DMA for all stocks across the 30 trading days
+	if err := recalcDMA20ForAllStocks(tradingDays); err != nil {
+		log.Printf("SyncHistorical: DMA recalc error: %v", err)
+	}
+
+	return nil
+}
+
+// recalcDMA20ForAllStocks recomputes 20 DMA for every stock on each of the given dates.
+func recalcDMA20ForAllStocks(tradingDays []string) error {
+	rows, err := database.DB.Query("SELECT id, symbol FROM stocks")
+	if err != nil {
+		return fmt.Errorf("query stocks: %w", err)
+	}
+	defer rows.Close()
+
+	type stock struct {
+		ID     int
+		Symbol string
+	}
+	var stocks []stock
+	for rows.Next() {
+		var s stock
+		if err := rows.Scan(&s.ID, &s.Symbol); err != nil {
+			continue
+		}
+		stocks = append(stocks, s)
+	}
+
+	log.Printf("SyncHistorical: recalculating 20 DMA for %d stocks x %d dates", len(stocks), len(tradingDays))
+	for _, s := range stocks {
+		for _, d := range tradingDays {
+			if err := updateDMA20ForStockAndDate(s.ID, d); err != nil {
+				log.Printf("SyncHistorical: dma %s %s: %v", s.Symbol, d, err)
+			}
+		}
+	}
+	log.Println("SyncHistorical: 20 DMA recalculation complete")
 	return nil
 }
 
