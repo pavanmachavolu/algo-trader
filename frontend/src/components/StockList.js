@@ -203,11 +203,18 @@ const StockList = () => {
                   </tr>
                 ) : (
                   stocks.map((stock, index) => {
-                    const belowDMA = stock.price_vs_dma20_percent != null && stock.price_vs_dma20_percent < -5;
+                    const pctVsDMA = stock.price_vs_dma20_percent;
+                    const belowDMA = pctVsDMA != null && pctVsDMA < -5;
+                    const aboveDMA = pctVsDMA != null && pctVsDMA > 5;
+                    const rowHighlight = belowDMA
+                      ? 'bg-[#ff4444]/10 hover:bg-[#ff4444]/20 border-l-2 border-l-[#ff4444]'
+                      : aboveDMA
+                        ? 'bg-[#00ff88]/10 hover:bg-[#00ff88]/20 border-l-2 border-l-[#00ff88]'
+                        : 'hover:bg-[#1a1a1a]/50';
                     return (
                     <tr 
                       key={stock.id} 
-                      className={`transition-colors duration-150 cursor-pointer ${belowDMA ? 'bg-[#ff4444]/10 hover:bg-[#ff4444]/20 border-l-2 border-l-[#ff4444]' : 'hover:bg-[#1a1a1a]/50'}`}
+                      className={`transition-colors duration-150 cursor-pointer ${rowHighlight}`}
                       style={{ animationDelay: `${index * 20}ms` }}
                       onClick={() => navigate(`/stock/${stock.symbol}`)}
                     >
