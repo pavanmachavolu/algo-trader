@@ -18,6 +18,65 @@ var (
 	KiteFetchDelayMs      = 200
 )
 
+// nseHolidays contains NSE market holidays (YYYY-MM-DD). Update when NSE publishes new year.
+// Source: https://www.nseindia.com/market-data/holiday-list
+var nseHolidays = map[string]bool{
+	// 2025
+	"2025-01-26": true, // Republic Day
+	"2025-03-14": true, // Mahashivratri
+	"2025-03-25": true, // Holi
+	"2025-04-18": true, // Good Friday
+	"2025-04-14": true, // Ambedkar Jayanti
+	"2025-04-21": true, // Ram Navami
+	"2025-04-10": true, // Mahavir Jayanti
+	"2025-05-01": true, // Maharashtra Day
+	"2025-06-06": true, // Bakri-Id
+	"2025-07-17": true, // Muharram
+	"2025-08-15": true, // Independence Day
+	"2025-09-04": true, // Ganesh Chaturthi
+	"2025-10-02": true, // Gandhi Jayanti
+	"2025-10-08": true, // Dussehra
+	"2025-10-31": true, // Diwali Laxmi Pujan
+	"2025-11-01": true, // Diwali Balipratipada
+	"2025-11-12": true, // Guru Nanak Jayanti
+	"2025-12-25": true, // Christmas
+	// 2026
+	"2026-01-26": true, "2026-03-03": true, "2026-03-26": true, "2026-03-31": true,
+	"2026-04-03": true, "2026-04-14": true, "2026-05-01": true, "2026-05-28": true,
+	"2026-06-26": true, "2026-09-14": true, "2026-10-02": true, "2026-10-20": true,
+	"2026-11-10": true, "2026-11-24": true, "2026-12-25": true,
+}
+
+// isTradingDay returns true if the given date is a weekday and not an NSE holiday.
+func isTradingDay(t time.Time) bool {
+	return t.Weekday() != time.Saturday && t.Weekday() != time.Sunday &&
+		!nseHolidays[t.Format("2006-01-02")]
+}
+
+// getLastTradingDay returns the most recent trading day (excludes weekends and NSE holidays).
+// Never returns today; used so historical sync never includes today.
+func getLastTradingDay() time.Time {
+	t := time.Now().AddDate(0, 0, -1)
+	for !isTradingDay(t) {
+		t = t.AddDate(0, 0, -1)
+	}
+	return t
+}
+
+// getLast30TradingDays returns the last 30 trading day dates as "2006-01-02" strings,
+// walking backward from getLastTradingDay(). Skips weekends and NSE holidays.
+func getLast30TradingDays() []string {
+	days := make([]string, 0, 30)
+	t := getLastTradingDay()
+	for len(days) < 30 {
+		if isTradingDay(t) {
+			days = append(days, t.Format("2006-01-02"))
+		}
+		t = t.AddDate(0, 0, -1)
+	}
+	return days
+}
+
 func FetchAndUpdatePrices() error {
 	_ = godotenv.Load(".env")
 	_ = godotenv.Load("backend/.env")
@@ -170,8 +229,8 @@ func updateDMA20ForStockAndDate(stockID int, date string) error {
 	return err
 }
 
-// SyncHistorical fetches last 30 days of day candles from Kite and populates stock_prices.
-// Run on startup or periodically to backfill historical data for 20 DMA.
+// SyncHistorical fetches the last 30 trading days (until yesterday) from Kite for stocks
+// that have missing data. Stocks with all 30 dates already in stock_prices are skipped.
 func SyncHistorical() error {
 	_ = godotenv.Load(".env")
 	_ = godotenv.Load("backend/.env")
@@ -184,6 +243,61 @@ func SyncHistorical() error {
 	kc := kiteconnect.New(apiKey)
 	kc.SetAccessToken(accessToken)
 
+	// Step 1: Get the 30 trading dates we need
+	tradingDays := getLast30TradingDays()
+	if len(tradingDays) == 0 {
+		return fmt.Errorf("no trading days computed")
+	}
+	log.Printf("SyncHistorical: checking %d trading days (%s to %s)",
+		len(tradingDays), tradingDays[len(tradingDays)-1], tradingDays[0])
+
+	// Step 2: Find stocks missing any of these dates
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(tradingDays))
+	dateArgs := make([]interface{}, len(tradingDays))
+	for i, d := range tradingDays {
+		placeholders[i] = "?"
+		dateArgs[i] = d
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	query := fmt.Sprintf(`
+		SELECT s.id, s.nse_symbol
+		FROM stocks s
+		WHERE s.id NOT IN (
+			SELECT sp.stock_id FROM stock_prices sp
+			WHERE sp.date IN (%s)
+			GROUP BY sp.stock_id
+			HAVING COUNT(DISTINCT sp.date) = ?
+		)
+	`, inClause)
+	args := append(dateArgs, len(tradingDays))
+
+	rows, err := database.DB.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("query missing stocks: %w", err)
+	}
+	defer rows.Close()
+
+	type stockInfo struct {
+		ID        int
+		NSESymbol string
+	}
+	var missingStocks []stockInfo
+	for rows.Next() {
+		var s stockInfo
+		if err := rows.Scan(&s.ID, &s.NSESymbol); err != nil {
+			continue
+		}
+		missingStocks = append(missingStocks, s)
+	}
+
+	if len(missingStocks) == 0 {
+		log.Println("SyncHistorical: all stocks up to date, nothing to fetch")
+		return nil
+	}
+
+	// Step 3: Resolve instrument tokens for stocks that need data
 	instruments, err := kc.GetInstrumentsByExchange("NSE")
 	if err != nil {
 		return fmt.Errorf("GetInstruments: %w", err)
@@ -195,25 +309,19 @@ func SyncHistorical() error {
 		}
 	}
 
-	rows, err := database.DB.Query("SELECT id, nse_symbol FROM stocks")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
+	// Date range for Kite API: earliest trading day to latest
+	end := getLastTradingDay()
+	earliest, _ := time.Parse("2006-01-02", tradingDays[len(tradingDays)-1])
+	start := earliest.AddDate(0, 0, -1) // one day before earliest to be safe
 
-	end := time.Now()
-	start := end.AddDate(0, 0, -365) // 1 year for backtesting
-
-	for rows.Next() {
-		var stockID int
-		var nseSymbol string
-		if err := rows.Scan(&stockID, &nseSymbol); err != nil {
-			continue
-		}
-		symbol := strings.TrimSuffix(nseSymbol, ".NS")
+	// Step 4: Fetch and upsert only for stocks with missing data
+	fetched, skipped := 0, 0
+	for _, s := range missingStocks {
+		symbol := strings.TrimSuffix(s.NSESymbol, ".NS")
 		token, ok := symbolToToken[symbol]
 		if !ok {
 			log.Printf("SyncHistorical: %s not found in NSE EQ", symbol)
+			skipped++
 			continue
 		}
 
@@ -232,18 +340,21 @@ func SyncHistorical() error {
 				ON DUPLICATE KEY UPDATE
 					open = VALUES(open), high = VALUES(high), low = VALUES(low),
 					close = VALUES(close), volume = VALUES(volume)
-			`, stockID, dateStr, h.Open, h.High, h.Low, h.Close, h.Volume)
+			`, s.ID, dateStr, h.Open, h.High, h.Low, h.Close, h.Volume)
 			if err != nil {
 				log.Printf("SyncHistorical: insert %s %s: %v", symbol, dateStr, err)
 			}
-			if err := updateDMA20ForStockAndDate(stockID, dateStr); err != nil {
+			if err := updateDMA20ForStockAndDate(s.ID, dateStr); err != nil {
 				log.Printf("SyncHistorical: dma %s %s: %v", symbol, dateStr, err)
 			}
 		}
-		log.Printf("Synced historical for %s (%d candles)", symbol, len(hist))
+		fetched++
+		log.Printf("SyncHistorical: synced %s (%d candles)", symbol, len(hist))
 		time.Sleep(time.Duration(KiteFetchDelayMs) * time.Millisecond)
 	}
 
+	log.Printf("SyncHistorical: done. fetched=%d, skipped=%d, already_up_to_date=%d",
+		fetched, skipped, 50-len(missingStocks))
 	return nil
 }
 
