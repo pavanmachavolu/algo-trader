@@ -28,12 +28,12 @@ INSERT IGNORE INTO stocks (symbol, name, sector, nse_symbol) VALUES
 ('M&M', 'Mahindra & Mahindra Ltd', 'Automobile', 'M&M.NS'),
 ('WIPRO', 'Wipro Ltd', 'Information Technology', 'WIPRO.NS'),
 ('COALINDIA', 'Coal India Ltd', 'Energy', 'COALINDIA.NS'),
-('TATAMOTORS', 'Tata Motors Ltd', 'Automobile', 'TATAMOTORS.NS'),
+('TMPV', 'Tata Motors Passenger Vehicles Ltd', 'Automobile', 'TMPV.NS'),
 ('JSWSTEEL', 'JSW Steel Ltd', 'Metals', 'JSWSTEEL.NS'),
 ('ADANIENT', 'Adani Enterprises Ltd', 'Diversified', 'ADANIENT.NS'),
 ('TATASTEEL', 'Tata Steel Ltd', 'Metals', 'TATASTEEL.NS'),
 ('HINDALCO', 'Hindalco Industries Ltd', 'Metals', 'HINDALCO.NS'),
-('DIVISLAB', 'Dr. Reddy''s Laboratories Ltd', 'Pharmaceuticals', 'DIVISLAB.NS'),
+('DIVISLAB', 'Divi''s Laboratories Ltd', 'Pharmaceuticals', 'DIVISLAB.NS'),
 ('CIPLA', 'Cipla Ltd', 'Pharmaceuticals', 'CIPLA.NS'),
 ('GRASIM', 'Grasim Industries Ltd', 'Construction Materials', 'GRASIM.NS'),
 ('BAJAJFINSV', 'Bajaj Finserv Ltd', 'Financial Services', 'BAJAJFINSV.NS'),
@@ -50,4 +50,5 @@ INSERT IGNORE INTO stocks (symbol, name, sector, nse_symbol) VALUES
 ('HDFCLIFE', 'HDFC Life Insurance Company Ltd', 'Financial Services', 'HDFCLIFE.NS'),
 ('SBILIFE', 'SBI Life Insurance Company Ltd', 'Financial Services', 'SBILIFE.NS'),
 ('APOLLOHOSP', 'Apollo Hospitals Enterprise Ltd', 'Healthcare', 'APOLLOHOSP.NS'),
-('DLF', 'DLF Ltd', 'Real Estate', 'DLF.NS');
+('DLF', 'DLF Ltd', 'Real Estate', 'DLF.NS'),
+('DRREDDY', 'Dr. Reddy''s Laboratories Ltd', 'Pharmaceuticals', 'DRREDDY.NS');
