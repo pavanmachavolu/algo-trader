@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"algo-trader/backend/database"
+	"algo-trader/backend/pkg/kite"
 
 	kiteconnect "github.com/zerodhatech/gokiteconnect"
-	"github.com/joho/godotenv"
 )
 
 var (
@@ -77,17 +77,31 @@ func getLast30TradingDays() []string {
 	return days
 }
 
-func FetchAndUpdatePrices() error {
-	_ = godotenv.Load(".env")
-	_ = godotenv.Load("backend/.env")
+// ensureKiteClient loads env, validates the access token (or triggers the
+// browser login flow to get one), and returns a ready-to-use Kite client.
+func ensureKiteClient() (*kiteconnect.Client, error) {
+	kite.LoadEnv()
 	apiKey := os.Getenv("KITE_API_KEY")
-	accessToken := os.Getenv("KITE_ACCESS_TOKEN")
-	if apiKey == "" || accessToken == "" {
-		return fmt.Errorf("KITE_API_KEY and KITE_ACCESS_TOKEN required in .env")
+	apiSecret := os.Getenv("KITE_API_SECRET")
+	if apiKey == "" {
+		return nil, fmt.Errorf("KITE_API_KEY required in .env")
+	}
+
+	accessToken, err := kite.EnsureAccessToken(apiKey, apiSecret)
+	if err != nil {
+		return nil, fmt.Errorf("ensure access token: %w", err)
 	}
 
 	kc := kiteconnect.New(apiKey)
 	kc.SetAccessToken(accessToken)
+	return kc, nil
+}
+
+func FetchAndUpdatePrices() error {
+	kc, err := ensureKiteClient()
+	if err != nil {
+		return err
+	}
 
 	rows, err := database.DB.Query("SELECT id, symbol, nse_symbol FROM stocks")
 	if err != nil {
@@ -232,16 +246,10 @@ func updateDMA20ForStockAndDate(stockID int, date string) error {
 // SyncHistorical fetches the last 30 trading days (until yesterday) from Kite for stocks
 // that have missing data. Stocks with all 30 dates already in stock_prices are skipped.
 func SyncHistorical() error {
-	_ = godotenv.Load(".env")
-	_ = godotenv.Load("backend/.env")
-	apiKey := os.Getenv("KITE_API_KEY")
-	accessToken := os.Getenv("KITE_ACCESS_TOKEN")
-	if apiKey == "" || accessToken == "" {
-		return fmt.Errorf("KITE_API_KEY and KITE_ACCESS_TOKEN required")
+	kc, err := ensureKiteClient()
+	if err != nil {
+		return err
 	}
-
-	kc := kiteconnect.New(apiKey)
-	kc.SetAccessToken(accessToken)
 
 	// Step 1: Get the 30 trading dates we need
 	tradingDays := getLast30TradingDays()
