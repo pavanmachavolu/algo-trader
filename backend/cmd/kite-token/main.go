@@ -1,10 +1,14 @@
-// kite-token generates a Kite access token via the interactive browser login flow.
-// Set redirect URL to http://localhost:8888 in your Kite app settings.
+// kite-token ensures a valid Kite access token exists in backend/.env.
+// If the current token is valid, it exits immediately. Otherwise it opens
+// the Kite login URL in the browser and listens on localhost:8888 for the
+// callback to obtain a fresh token.
 //
-// Usage: go run ./cmd/kite-token
+// Build:  go build -o kite-token ./cmd/kite-token
+// Usage:  ./kite-token
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -20,11 +24,12 @@ func main() {
 		log.Fatal("KITE_API_KEY and KITE_API_SECRET are required in .env")
 	}
 
-	token, err := kite.RunLoginFlow(apiKey, apiSecret)
+	token, err := kite.EnsureAccessToken(apiKey, apiSecret)
 	if err != nil {
-		log.Fatalf("Login flow failed: %v", err)
+		log.Fatalf("Failed: %v", err)
 	}
 
-	log.Println("Access token:", token)
-	log.Println("Saved to .env")
+	fmt.Println()
+	fmt.Println("Access token is valid:", token)
+	fmt.Println("You can now run: docker-compose up -d")
 }
