@@ -47,8 +47,8 @@ var nseHolidays = map[string]bool{
 	"2026-11-10": true, "2026-11-24": true, "2026-12-25": true,
 }
 
-// isTradingDay returns true if the given date is a weekday and not an NSE holiday.
-func isTradingDay(t time.Time) bool {
+// IsTradingDay returns true if the given date is a weekday and not an NSE holiday.
+func IsTradingDay(t time.Time) bool {
 	return t.Weekday() != time.Saturday && t.Weekday() != time.Sunday &&
 		!nseHolidays[t.Format("2006-01-02")]
 }
@@ -57,7 +57,7 @@ func isTradingDay(t time.Time) bool {
 // Never returns today; used so historical sync never includes today.
 func getLastTradingDay() time.Time {
 	t := time.Now().AddDate(0, 0, -1)
-	for !isTradingDay(t) {
+	for !IsTradingDay(t) {
 		t = t.AddDate(0, 0, -1)
 	}
 	return t
@@ -69,7 +69,7 @@ func getLast30TradingDays() []string {
 	days := make([]string, 0, 30)
 	t := getLastTradingDay()
 	for len(days) < 30 {
-		if isTradingDay(t) {
+		if IsTradingDay(t) {
 			days = append(days, t.Format("2006-01-02"))
 		}
 		t = t.AddDate(0, 0, -1)

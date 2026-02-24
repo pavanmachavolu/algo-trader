@@ -34,3 +34,35 @@ export const getStockHistory = async (symbol, startDate = null, endDate = null) 
     throw error;
   }
 };
+
+export const getPositions = async (status = null) => {
+  try {
+    const params = {};
+    if (status) params.status = status;
+    const response = await api.get('/api/positions', { params });
+    return response.data || [];
+  } catch (error) {
+    console.error('Error fetching positions:', error);
+    throw error;
+  }
+};
+
+export const getPositionsSummary = async () => {
+  try {
+    const response = await api.get('/api/positions/summary');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching positions summary:', error);
+    throw error;
+  }
+};
+
+export const getTrades = async (limit = 20) => {
+  try {
+    const response = await api.get('/api/trades', { params: { limit } });
+    return response.data || [];
+  } catch (error) {
+    console.error('Error fetching trades:', error);
+    throw error;
+  }
+};

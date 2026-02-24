@@ -9,6 +9,7 @@ import (
 
 	"algo-trader/backend/database"
 	"algo-trader/backend/handlers"
+	"algo-trader/backend/pkg/notify"
 	"algo-trader/backend/services"
 
 	"github.com/gorilla/mux"
@@ -21,8 +22,14 @@ func main() {
 	}
 	defer database.CloseDB()
 
+	// Reload Telegram config after env is loaded by price fetcher
+	notify.Reload()
+
 	// Start price fetcher service in background
 	go services.StartPriceFetcher()
+
+	// Start virtual trader scheduler
+	go services.StartTrader()
 
 	// Setup routes
 	router := mux.NewRouter()
@@ -30,6 +37,9 @@ func main() {
 
 	api.HandleFunc("/stocks", handlers.GetStocks).Methods("GET")
 	api.HandleFunc("/stocks/{symbol}/history", handlers.GetStockHistory).Methods("GET")
+	api.HandleFunc("/positions", handlers.GetPositions).Methods("GET")
+	api.HandleFunc("/positions/summary", handlers.GetPositionsSummary).Methods("GET")
+	api.HandleFunc("/trades", handlers.GetTrades).Methods("GET")
 
 	// Health check endpoint
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

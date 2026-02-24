@@ -93,6 +93,12 @@ const StockList = () => {
               <p className="text-sm text-[#888]">Real-time market data & analytics</p>
             </div>
             <div className="flex items-center gap-6">
+              <button
+                onClick={() => navigate('/portfolio')}
+                className="px-5 py-2.5 glass rounded-lg border border-[#2a2a2a] text-[#e5e5e5] font-medium hover:border-[#00d4ff]/50 transition-all"
+              >
+                Portfolio
+              </button>
               {lastUpdated && (
                 <div className="text-right glass rounded-lg px-4 py-2 border border-[#2a2a2a]">
                   <div className="text-xs text-[#888] mb-1 uppercase tracking-wider">Last Price Fetch</div>
