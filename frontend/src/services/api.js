@@ -66,3 +66,13 @@ export const getTrades = async (limit = 20) => {
     throw error;
   }
 };
+
+export const getStatus = async () => {
+  try {
+    const response = await api.get('/api/status');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching status:', error);
+    return { kite_token_valid: false };
+  }
+};

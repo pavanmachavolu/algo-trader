@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStocks } from '../services/api';
+import { getStocks, getStatus } from '../services/api';
+
+const TokenBadge = ({ valid }) => (
+  <div className={`flex items-center gap-2 glass rounded-lg px-3 py-2 border ${valid ? 'border-[#00ff88]/30' : 'border-[#ff4444]/50 bg-[#ff4444]/10'}`}>
+    <div className={`w-2 h-2 rounded-full ${valid ? 'bg-[#00ff88]' : 'bg-[#ff4444] animate-pulse'}`}></div>
+    <span className={`text-xs font-medium ${valid ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+      {valid ? 'Kite Connected' : 'Kite Token Expired'}
+    </span>
+  </div>
+);
 
 const StockList = () => {
   const navigate = useNavigate();
@@ -8,6 +17,17 @@ const StockList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [tokenValid, setTokenValid] = useState(null);
+
+  useEffect(() => {
+    const checkToken = async () => {
+      const status = await getStatus();
+      setTokenValid(status.kite_token_valid);
+    };
+    checkToken();
+    const interval = setInterval(checkToken, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchStocks = async () => {
     try {
@@ -93,6 +113,7 @@ const StockList = () => {
               <p className="text-sm text-[#888]">Real-time market data & analytics</p>
             </div>
             <div className="flex items-center gap-6">
+              {tokenValid !== null && <TokenBadge valid={tokenValid} />}
               <button
                 onClick={() => navigate('/portfolio')}
                 className="px-5 py-2.5 glass rounded-lg border border-[#2a2a2a] text-[#e5e5e5] font-medium hover:border-[#00d4ff]/50 transition-all"

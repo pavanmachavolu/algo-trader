@@ -44,6 +44,19 @@ func main() {
 	api.HandleFunc("/positions/summary", handlers.GetPositionsSummary).Methods("GET")
 	api.HandleFunc("/trades", handlers.GetTrades).Methods("GET")
 
+	api.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		kite.LoadEnv()
+		apiKey := os.Getenv("KITE_API_KEY")
+		token := os.Getenv("KITE_ACCESS_TOKEN")
+		valid := apiKey != "" && token != "" && kite.ValidateToken(apiKey, token)
+		resp := map[string]interface{}{
+			"kite_token_valid": valid,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		json.NewEncoder(w).Encode(resp)
+	}).Methods("GET")
+
 	api.HandleFunc("/reload-config", func(w http.ResponseWriter, r *http.Request) {
 		kite.LoadEnv()
 		notify.Reload()
