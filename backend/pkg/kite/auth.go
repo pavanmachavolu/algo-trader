@@ -17,10 +17,11 @@ import (
 
 const CallbackPort = "8888"
 
-// LoadEnv loads .env from standard project locations.
+// LoadEnv loads .env from standard project locations, overwriting any
+// existing values so that runtime reloads pick up file changes.
 func LoadEnv() {
 	for _, p := range []string{".env", "backend/.env", "/root/.env"} {
-		_ = godotenv.Load(p)
+		_ = godotenv.Overload(p)
 	}
 }
 

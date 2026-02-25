@@ -10,7 +10,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"time"
 
 	"algo-trader/backend/pkg/kite"
 )
@@ -31,5 +33,20 @@ func main() {
 
 	fmt.Println()
 	fmt.Println("Access token is valid:", token)
-	fmt.Println("You can now run: docker-compose up -d")
+
+	log.Println("Waiting 2 seconds before reloading backend config...")
+	time.Sleep(2 * time.Second)
+
+	resp, err := http.Post("http://localhost:8080/api/reload-config", "application/json", nil)
+	if err != nil {
+		log.Printf("Could not call reload-config API: %v (is the backend running?)", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		log.Println("Backend config reloaded successfully.")
+	} else {
+		log.Printf("Backend reload-config returned status %d", resp.StatusCode)
+	}
 }
