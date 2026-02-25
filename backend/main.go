@@ -7,8 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"encoding/json"
+
 	"algo-trader/backend/database"
 	"algo-trader/backend/handlers"
+	"algo-trader/backend/pkg/kite"
 	"algo-trader/backend/pkg/notify"
 	"algo-trader/backend/services"
 
@@ -40,6 +43,25 @@ func main() {
 	api.HandleFunc("/positions", handlers.GetPositions).Methods("GET")
 	api.HandleFunc("/positions/summary", handlers.GetPositionsSummary).Methods("GET")
 	api.HandleFunc("/trades", handlers.GetTrades).Methods("GET")
+
+	api.HandleFunc("/reload-config", func(w http.ResponseWriter, r *http.Request) {
+		kite.LoadEnv()
+		notify.Reload()
+		token := os.Getenv("KITE_ACCESS_TOKEN")
+		masked := ""
+		if len(token) > 6 {
+			masked = token[:3] + "..." + token[len(token)-3:]
+		}
+		resp := map[string]string{
+			"status":            "reloaded",
+			"kite_access_token": masked,
+			"telegram_chat_id":  os.Getenv("TELEGRAM_CHAT_ID"),
+		}
+		log.Println("Config reloaded from .env")
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		json.NewEncoder(w).Encode(resp)
+	}).Methods("POST")
 
 	// Health check endpoint
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

@@ -36,6 +36,8 @@ services:
       DB_NAME: algo_trader
     env_file:
       - backend/.env
+    volumes:
+      - ./backend/.env:/root/.env:ro
     depends_on:
       mysql:
         condition: service_healthy

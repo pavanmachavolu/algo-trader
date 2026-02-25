@@ -19,7 +19,7 @@ const CallbackPort = "8888"
 
 // LoadEnv loads .env from standard project locations.
 func LoadEnv() {
-	for _, p := range []string{".env", "backend/.env"} {
+	for _, p := range []string{".env", "backend/.env", "/root/.env"} {
 		_ = godotenv.Load(p)
 	}
 }
