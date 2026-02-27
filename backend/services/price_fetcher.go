@@ -77,19 +77,23 @@ func getLast30TradingDays() []string {
 	return days
 }
 
-// ensureKiteClient loads env, validates the access token (or triggers the
-// browser login flow to get one), and returns a ready-to-use Kite client.
+// ensureKiteClient loads env, validates the access token, and returns a
+// ready-to-use Kite client. Unlike the CLI tool, this never attempts the
+// interactive browser login flow -- it fails fast so the ticker can retry.
 func ensureKiteClient() (*kiteconnect.Client, error) {
 	kite.LoadEnv()
 	apiKey := os.Getenv("KITE_API_KEY")
-	apiSecret := os.Getenv("KITE_API_SECRET")
 	if apiKey == "" {
 		return nil, fmt.Errorf("KITE_API_KEY required in .env")
 	}
 
-	accessToken, err := kite.EnsureAccessToken(apiKey, apiSecret)
-	if err != nil {
-		return nil, fmt.Errorf("ensure access token: %w", err)
+	accessToken := os.Getenv("KITE_ACCESS_TOKEN")
+	if accessToken == "" {
+		return nil, fmt.Errorf("KITE_ACCESS_TOKEN not set; run kite-token CLI to generate one")
+	}
+
+	if !kite.ValidateToken(apiKey, accessToken) {
+		return nil, fmt.Errorf("KITE_ACCESS_TOKEN is invalid/expired; run kite-token CLI to refresh")
 	}
 
 	kc := kiteconnect.New(apiKey)
