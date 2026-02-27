@@ -97,6 +97,13 @@ func runTraderIfNeeded(today string) {
 		return
 	}
 
+	log.Println("Trader: fetching latest prices before trading...")
+	if err := FetchAndUpdatePrices(); err != nil {
+		log.Printf("Trader: price fetch failed, aborting trade run: %v", err)
+		notify.Send(fmt.Sprintf("Trader aborted -- price fetch failed: %v", err))
+		return
+	}
+
 	log.Println("Trader: starting trading run for", today)
 
 	buys := runBuyFlow(today)
