@@ -67,6 +67,11 @@ export const getTrades = async (limit = 20) => {
   }
 };
 
+export const refreshPrices = async () => {
+  const response = await api.post('/api/prices/refresh');
+  return response.data;
+};
+
 export const getStatus = async () => {
   try {
     const response = await api.get('/api/status');

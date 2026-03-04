@@ -57,6 +57,26 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	}).Methods("GET")
 
+	api.HandleFunc("/prices/refresh", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		if err := services.FetchAndUpdatePrices(); err != nil {
+			log.Printf("Manual price refresh failed: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"status": "error",
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		log.Println("Manual price refresh completed")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "ok",
+		})
+	}).Methods("POST")
+
 	api.HandleFunc("/reload-config", func(w http.ResponseWriter, r *http.Request) {
 		kite.LoadEnv()
 		notify.Reload()

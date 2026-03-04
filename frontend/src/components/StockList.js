@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStocks, getStatus } from '../services/api';
+import { getStocks, getStatus, refreshPrices } from '../services/api';
 
 const TokenBadge = ({ valid }) => (
   <div className={`flex items-center gap-2 glass rounded-lg px-3 py-2 border ${valid ? 'border-[#00ff88]/30' : 'border-[#ff4444]/50 bg-[#ff4444]/10'}`}>
@@ -29,9 +29,18 @@ const StockList = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchStocks = async () => {
+  const fetchStocks = async ({ triggerPriceRefresh = false } = {}) => {
     try {
       setLoading(true);
+
+      if (triggerPriceRefresh) {
+        try {
+          await refreshPrices();
+        } catch (refreshErr) {
+          console.error('Price refresh failed, loading cached data:', refreshErr);
+        }
+      }
+
       const response = await getStocks();
       
       // Handle both old format (array) and new format (object with metadata)
@@ -40,7 +49,6 @@ const StockList = () => {
         setLastUpdated(new Date());
       } else {
         setStocks(response.stocks || response);
-        // Use the backend's last_price_fetch timestamp
         if (response.metadata && response.metadata.last_price_fetch) {
           setLastUpdated(new Date(response.metadata.last_price_fetch));
         } else {
@@ -139,7 +147,7 @@ const StockList = () => {
                 </div>
               )}
               <button
-                onClick={fetchStocks}
+                onClick={() => fetchStocks({ triggerPriceRefresh: true })}
                 disabled={loading}
                 className="px-6 py-2.5 bg-gradient-to-r from-[#00d4ff] to-[#5b8def] text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-[#00d4ff]/20"
               >

@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	PriceFetchIntervalMin = 10
+	PriceFetchIntervalMin = 5
 	KiteFetchDelayMs      = 200
 )
 
