@@ -44,3 +44,5 @@ venv/
 env/
 ENV/
 backend/backtest
+backend/backtest-report
+backtest-report.html
