@@ -21,7 +21,7 @@ import (
 
 const (
 	backtestDBName   = "algo_trader_backtest"
-	buyBudget        = 10000.0
+	buyBudget        = 20000.0
 	buyThresholdPct  = -5.0 // buy when price is this % or more below 20 DMA
 	sellThresholdPct = 5.0  // sell when price is this % or more above 20 DMA
 	kiteFetchDelayMs = 200

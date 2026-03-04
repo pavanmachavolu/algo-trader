@@ -167,7 +167,7 @@ func buildReport(db *sql.DB) ReportData {
 		GeneratedAt:   time.Now().Format("2006-01-02 15:04:05"),
 		BuyThreshold:  -5.0,
 		SellThreshold: 5.0,
-		BuyBudget:     10000.0,
+		BuyBudget:     20000.0,
 	}
 
 	// Find simulation date range from trades
