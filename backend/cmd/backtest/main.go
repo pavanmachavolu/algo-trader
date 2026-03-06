@@ -527,7 +527,7 @@ func simulateTrading(priceData map[int][]priceDay, stocks []stockInfo, simStart,
 			if !hasPosition && pctVsDMA <= buyThresholdPct {
 				qty := int(math.Floor(buyBudget / p.Close))
 				if qty == 0 {
-					continue
+					qty = 1
 				}
 				amount := float64(qty) * p.Close
 

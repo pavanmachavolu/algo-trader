@@ -167,8 +167,7 @@ func runBuyFlow(today string) int {
 		// Step 4: Compute quantity (whole shares)
 		quantity := int(math.Floor(buyBudget / currentPrice))
 		if quantity == 0 {
-			log.Printf("Trader: BUY skip %s -- price %.2f > budget %.0f", symbol, currentPrice, buyBudget)
-			continue
+			quantity = 1
 		}
 		buyAmount := float64(quantity) * currentPrice
 
