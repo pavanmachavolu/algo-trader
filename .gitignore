@@ -45,4 +45,11 @@ env/
 ENV/
 backend/backtest
 backend/backtest-report
+backend/backtest-bb
+backend/backtest-bb-report
+backend/backtest-rsi
+backend/backtest-rsi-report
 backtest-report.html
+
+# Reports
+backend/reports/

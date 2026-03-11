@@ -121,10 +121,11 @@ func main() {
 
 	data := buildReport(db)
 
-	outPath := "backtest-rsi-report.html"
+	outPath := "reports/backtest-rsi-report.html"
 	if len(os.Args) > 1 {
 		outPath = os.Args[1]
 	}
+	os.MkdirAll("reports", 0755)
 
 	writeHTML(data, outPath)
 	log.Printf("Report written to %s\n", outPath)
